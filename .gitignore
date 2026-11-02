@@ -1,0 +1,6 @@
+.env
+isu_chroma_db/
+uploads/*
+!uploads/.gitkeep
+__pycache__/
+*.pyc
