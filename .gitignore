@@ -1,6 +1,20 @@
+# Secrets
 .env
-isu_chroma_db/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Uploaded user files
 uploads/*
 !uploads/.gitkeep
+
+# Python-generated files
 __pycache__/
-*.pyc
+*.py[cod]
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
