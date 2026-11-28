@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ "Create account" if mode == "register" else "Log in" }} — Mentora</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            display: grid;
+            place-items: center;
+            color: #0f172a;
+            background:
+                radial-gradient(circle at top left, #ffe4e6 0, transparent 38%),
+                #fff6f6;
+        }
+
+        .auth-card {
+            width: min(100%, 440px);
+            padding: 38px;
+            border: 1px solid #f0dfe1;
+            border-radius: 22px;
+            background: #ffffff;
+            box-shadow: 0 18px 50px rgba(127, 29, 29, 0.1);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            margin-bottom: 30px;
+        }
+
+        .brand-icon {
+            display: grid;
+            width: 48px;
+            height: 48px;
+            place-items: center;
+            border-radius: 14px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #7f1d1d, #c62828);
+            font-size: 1.45rem;
+        }
+
+        .brand-name {
+            margin: 0;
+            color: #7f1d1d;
+            font-size: 1.5rem;
+        }
+
+        .brand-caption {
+            margin: 3px 0 0;
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.7rem;
+        }
+
+        .intro {
+            margin: 0 0 24px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
+        .messages {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+
+        .message {
+            padding: 11px 13px;
+            border-radius: 10px;
+            line-height: 1.4;
+        }
+
+        .message.error {
+            color: #991b1b;
+            background: #fff1f2;
+        }
+
+        .message.success {
+            color: #166534;
+            background: #f0fdf4;
+        }
+
+        form {
+            display: grid;
+            gap: 16px;
+        }
+
+        label {
+            display: grid;
+            gap: 7px;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 13px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            color: #0f172a;
+            background: #ffffff;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            border-color: #c62828;
+            outline: 3px solid rgba(198, 40, 40, 0.12);
+        }
+
+        .submit-button {
+            margin-top: 4px;
+            padding: 13px;
+            border: 0;
+            border-radius: 10px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #7f1d1d, #c62828);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .submit-button:hover {
+            filter: brightness(1.08);
+        }
+
+        .guest-form {
+            margin-top: 12px;
+        }
+
+        .guest-button {
+            padding: 12px;
+            border: 1px solid #fecdd3;
+            border-radius: 10px;
+            color: #7f1d1d;
+            background: #fff1f2;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .guest-button:hover {
+            background: #ffe4e6;
+        }
+
+        .switch-mode {
+            margin: 22px 0 0;
+            color: #64748b;
+            text-align: center;
+        }
+
+        a {
+            color: #9f2424;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+            .auth-card {
+                padding: 28px 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="auth-card">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">🎓</div>
+            <div>
+                <p class="brand-name">Mentora</p>
+                <p class="brand-caption">ISU information assistant</p>
+            </div>
+        </div>
+
+        <h1>{{ "Create your account" if mode == "register" else "Welcome back" }}</h1>
+        <p class="intro">
+            {{ "Register to start chatting with Mentora." if mode == "register" else "Log in to continue to your Mentora chat." }}
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="messages" role="status" aria-live="polite">
+                    {% for category, message in messages %}
+                        <div class="message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="post" action="{{ url_for(mode) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="next" value="{{ next_url }}">
+
+            {% if mode == "register" %}
+                <label for="name">
+                    Name
+                    <input id="name" name="name" type="text" maxlength="80"
+                           autocomplete="name" required>
+                </label>
+            {% endif %}
+
+            <label for="email">
+                Email
+                <input id="email" name="email" type="email" maxlength="254"
+                       autocomplete="email" required>
+            </label>
+
+            <label for="password">
+                Password
+                <input id="password" name="password" type="password"
+                       minlength="8" maxlength="128"
+                       autocomplete="{{ 'new-password' if mode == 'register' else 'current-password' }}"
+                       required>
+                {% if mode == "register" %}
+                    <span class="brand-caption">Use at least 8 characters.</span>
+                {% endif %}
+            </label>
+
+            <button class="submit-button" type="submit">
+                {{ "Create account" if mode == "register" else "Log in" }}
+            </button>
+        </form>
+
+        {% if mode == "login" %}
+            <form class="guest-form" method="post" action="{{ url_for('guest_login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <button class="guest-button" type="submit">Continue as guest</button>
+            </form>
+        {% endif %}
+
+        <p class="switch-mode">
+            {% if mode == "register" %}
+                Already have an account? <a href="{{ url_for('login') }}">Log in</a>
+            {% else %}
+                New to Mentora? <a href="{{ url_for('register') }}">Create an account</a>
+            {% endif %}
+        </p>
+    </main>
+</body>
+</html>

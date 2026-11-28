@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin management — Mentora</title>
+    <style>
+        :root {
+            --primary: #7f1d1d;
+            --primary-light: #c62828;
+            --primary-soft: #fff1f2;
+            --primary-border: #fecdd3;
+            --bg-main: #fff6f6;
+            --bg-card: #ffffff;
+            --surface-muted: #f8fafc;
+            --surface-hover: #fff1f2;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border: #f0dfe1;
+            --error-bg: #fff1f2;
+            --error-text: #991b1b;
+            --success-bg: #f0fdf4;
+            --success-text: #166534;
+        }
+        :root[data-theme="ocean"] {
+            --primary: #0c4a6e; --primary-light: #0284c7;
+            --primary-soft: #e0f2fe; --primary-border: #bae6fd;
+            --bg-main: #f0f9ff; --surface-hover: #e0f2fe; --border: #dbeaf3;
+        }
+        :root[data-theme="forest"] {
+            --primary: #14532d; --primary-light: #16a34a;
+            --primary-soft: #ecfdf5; --primary-border: #a7f3d0;
+            --bg-main: #f0fdf4; --surface-hover: #dcfce7; --border: #d6eee0;
+        }
+        :root[data-theme="violet"] {
+            --primary: #4c1d95; --primary-light: #7c3aed;
+            --primary-soft: #f5f3ff; --primary-border: #ddd6fe;
+            --bg-main: #faf8ff; --surface-hover: #ede9fe; --border: #e7e0f4;
+        }
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --primary: #cbd5e1; --primary-light: #93c5fd;
+            --primary-soft: #1e293b; --primary-border: #475569;
+            --bg-main: #0b1120; --bg-card: #111827; --surface-muted: #1e293b;
+            --surface-hover: #334155; --text-dark: #f1f5f9;
+            --text-muted: #94a3b8; --border: #334155;
+            --error-bg: #3f1d2a; --error-text: #fda4af;
+            --success-bg: #123226; --success-text: #86efac;
+        }
+        * {
+            box-sizing: border-box;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 32px 18px;
+            color: var(--text-dark);
+            background: var(--bg-main);
+        }
+
+        main {
+            width: min(100%, 980px);
+            margin: 0 auto;
+            padding: 30px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--bg-card);
+            box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            color: var(--primary);
+        }
+
+        .intro {
+            margin: 0;
+            color: var(--text-muted);
+        }
+
+        a {
+            color: var(--primary-light);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .messages {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+
+        .message {
+            padding: 11px 13px;
+            border-radius: 10px;
+        }
+
+        .message.error {
+            color: var(--error-text);
+            background: var(--error-bg);
+        }
+
+        .message.success {
+            color: var(--success-text);
+            background: var(--success-bg);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 13px 10px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-dark);
+            vertical-align: middle;
+        }
+
+        th {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .role {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 999px;
+            color: var(--text-dark);
+            background: var(--surface-muted);
+            font-size: 0.88rem;
+        }
+
+        .role.admin {
+            color: var(--primary);
+            background: var(--primary-soft);
+        }
+
+        .action-form {
+            margin: 0;
+        }
+
+        button {
+            padding: 8px 11px;
+            border: 1px solid var(--primary-border);
+            border-radius: 8px;
+            color: var(--primary);
+            background: var(--primary-soft);
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--surface-hover);
+        }
+
+        .resign {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .resign p {
+            margin: 0 0 12px;
+            color: var(--text-muted);
+        }
+
+        .confirm-dialog {
+            position: fixed;
+            inset: 0;
+            margin: auto;
+            width: min(420px, calc(100vw - 32px));
+            max-height: fit-content;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            color: var(--text-dark);
+            background: var(--bg-card);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+        }
+
+        .confirm-dialog::backdrop {
+            background: rgba(15, 23, 42, .55);
+            backdrop-filter: blur(3px);
+        }
+
+        .confirm-dialog-content { padding: 24px; }
+        .confirm-dialog h2 { margin: 0 0 8px; color: var(--primary); font-size: 1.15rem; }
+        .confirm-dialog p { margin: 0; color: var(--text-muted); line-height: 1.5; }
+        .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+        .confirm-dialog-actions button {
+            padding: 9px 14px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text-dark);
+            background: var(--surface-muted);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .confirm-dialog-actions .confirm-action {
+            border-color: var(--primary-light);
+            color: #ffffff;
+            background: var(--primary-light);
+        }
+
+        @media (max-width: 620px) {
+            main {
+                padding: 22px 16px;
+            }
+
+            .page-header {
+                flex-direction: column;
+            }
+
+            th, td {
+                padding: 11px 8px;
+            }
+        }
+    </style>
+    <script>
+        try {
+            const theme = localStorage.getItem('mentora-theme');
+            if (['red', 'ocean', 'forest', 'violet', 'dark'].includes(theme)) {
+                document.documentElement.dataset.theme = theme;
+            }
+        } catch (error) {
+            console.error('Could not load the saved theme preference:', error);
+        }
+    </script>
+</head>
+<body>
+    <main>
+        <header class="page-header">
+            <div>
+                <h1>Admin management</h1>
+                <p class="intro">Promote users or manage the current admin team.</p>
+            </div>
+            <a href="{{ url_for('home') }}">Back to chat</a>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="messages" role="status" aria-live="polite">
+                    {% for category, message in messages %}
+                        <div class="message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        <tr>
+                            <td>{{ user[1] }}{% if user[0] == current_user_id %} (you){% endif %}</td>
+                            <td>{{ user[2] }}</td>
+                            <td>
+                                <span class="role {{ 'admin' if user[3] == 'admin' else '' }}">
+                                    {{ user[3]|title }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if user[3] == 'admin' and user[0] == current_user_id %}
+                                    Current admin
+                                {% elif user[3] == 'admin' %}
+                                    <form class="action-form" method="post"
+                                          data-confirm-message="Are you sure you want to revoke this admin access?"
+                                          onsubmit="return requestActionConfirmation(event)"
+                                          action="{{ url_for('update_user_role', target_id=user[0]) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="action" value="revoke">
+                                        <button type="submit">Revoke admin</button>
+                                    </form>
+                                {% else %}
+                                    <form class="action-form" method="post"
+                                          action="{{ url_for('update_user_role', target_id=user[0]) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="action" value="promote">
+                                        <button type="submit">Make admin</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <section class="resign">
+            <p>Resigning removes your admin privileges but keeps your user account.</p>
+            <form method="post" action="{{ url_for('resign_admin') }}"
+                  data-confirm-message="Are you sure you want to resign as an admin?"
+                  onsubmit="return requestActionConfirmation(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit">Resign as admin</button>
+            </form>
+        </section>
+    </main>
+    <dialog class="confirm-dialog" id="actionConfirmDialog"
+            aria-labelledby="actionConfirmTitle"
+            aria-describedby="actionConfirmMessage">
+        <div class="confirm-dialog-content">
+            <h2 id="actionConfirmTitle">Confirm action</h2>
+            <p id="actionConfirmMessage"></p>
+            <div class="confirm-dialog-actions">
+                <button type="button" onclick="closeActionConfirmation()">Cancel</button>
+                <button class="confirm-action" type="button"
+                        onclick="confirmActionSubmission()">Continue</button>
+            </div>
+        </div>
+    </dialog>
+    <script>
+        let pendingActionForm = null;
+        let confirmedActionForm = null;
+
+        function requestActionConfirmation(event) {
+            const form = event.currentTarget;
+            if (confirmedActionForm === form) {
+                confirmedActionForm = null;
+                return true;
+            }
+
+            event.preventDefault();
+            pendingActionForm = form;
+            document.getElementById('actionConfirmMessage').textContent =
+                form.dataset.confirmMessage;
+            document.getElementById('actionConfirmDialog').showModal();
+            return false;
+        }
+
+        function closeActionConfirmation() {
+            pendingActionForm = null;
+            document.getElementById('actionConfirmDialog').close();
+        }
+
+        function confirmActionSubmission() {
+            const form = pendingActionForm;
+            if (!form) return;
+            pendingActionForm = null;
+            confirmedActionForm = form;
+            document.getElementById('actionConfirmDialog').close();
+            form.requestSubmit();
+        }
+
+        document.getElementById('actionConfirmDialog').addEventListener(
+            'cancel',
+            () => { pendingActionForm = null; }
+        );
+    </script>
+</body>
+</html>

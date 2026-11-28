@@ -755,6 +755,64 @@
             margin-top: 8px;
         }
 
+        .confirm-dialog {
+            position: fixed;
+            inset: 0;
+            margin: auto;
+            width: min(420px, calc(100vw - 32px));
+            max-height: fit-content;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            color: var(--text-dark);
+            background: var(--bg-card);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+        }
+
+        .confirm-dialog::backdrop {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(3px);
+        }
+
+        .confirm-dialog-content {
+            padding: 24px;
+        }
+
+        .confirm-dialog h2 {
+            margin-bottom: 8px;
+            color: var(--primary);
+            font-size: 1.15rem;
+        }
+
+        .confirm-dialog p {
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .confirm-dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .confirm-dialog-actions button {
+            padding: 9px 14px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text-dark);
+            background: var(--surface-muted);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .confirm-dialog-actions .confirm-action {
+            border-color: var(--primary-light);
+            color: #ffffff;
+            background: var(--primary-light);
+        }
+
         @keyframes bounce {
             0%, 80%, 100% { transform: translateY(0); }
             40% { transform: translateY(-6px); }
@@ -838,6 +896,25 @@
             <button class="clear-btn" id="newChatButton" onclick="resetChat()" title="Start a new chat" aria-label="Start a new chat">
                 <i class="fas fa-rotate-right" aria-hidden="true"></i>
             </button>
+            {% if is_admin %}
+                <a class="clear-btn" href="{{ url_for('admin_knowledge') }}"
+                   title="Manage chatbot knowledge files" aria-label="Manage chatbot knowledge files">
+                    <i class="fas fa-folder-open" aria-hidden="true"></i>
+                </a>
+                <a class="clear-btn" href="{{ url_for('admin_users') }}"
+                   title="Manage users and admins" aria-label="Manage users and admins">
+                    <i class="fas fa-user-shield" aria-hidden="true"></i>
+                </a>
+            {% endif %}
+            <form action="{{ url_for('logout') }}" method="post"
+                  data-confirm-message="Are you sure you want to sign out?"
+                  onsubmit="return requestActionConfirmation(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="clear-btn" type="submit" title="Sign out"
+                        aria-label="Sign out {{ user_name }}">
+                    <i class="fas fa-right-from-bracket" aria-hidden="true"></i>
+                </button>
+            </form>
         </div>
     </div>
 
@@ -858,11 +935,8 @@
                         Ask about ISU courses, admissions, policies or services.
                     </p>
                 </div>
-                <div class="suggestion-chips">
-                    <button class="chip" onclick="sendQuickPrompt('Tell me about the CSE program at ISU')">Tell me about CSE</button>
-                    <button class="chip" onclick="sendQuickPrompt('How do I apply to ISU?')">How do I apply?</button>
-                    <button class="chip" onclick="sendQuickPrompt('Who can I contact at ISU for academic help?')">Academic contact</button>
-                </div>
+                <div class="suggestion-chips" id="suggestionChips"
+                     aria-label="Suggested questions"></div>
             </div>
         </div>
     </div>
@@ -895,7 +969,58 @@
     </div>
 </div>
 
+<dialog class="confirm-dialog" id="actionConfirmDialog"
+        aria-labelledby="actionConfirmTitle"
+        aria-describedby="actionConfirmMessage">
+    <div class="confirm-dialog-content">
+        <h2 id="actionConfirmTitle">Confirm action</h2>
+        <p id="actionConfirmMessage"></p>
+        <div class="confirm-dialog-actions">
+            <button type="button" onclick="closeActionConfirmation()">Cancel</button>
+            <button class="confirm-action" type="button"
+                    onclick="confirmActionSubmission()">Continue</button>
+        </div>
+    </div>
+</dialog>
+
 <script>
+    let pendingActionForm = null;
+    let confirmedActionForm = null;
+
+    function requestActionConfirmation(event) {
+        const form = event.currentTarget;
+        if (confirmedActionForm === form) {
+            confirmedActionForm = null;
+            return true;
+        }
+
+        event.preventDefault();
+        pendingActionForm = form;
+        document.getElementById('actionConfirmMessage').textContent =
+            form.dataset.confirmMessage;
+        document.getElementById('actionConfirmDialog').showModal();
+        return false;
+    }
+
+    function closeActionConfirmation() {
+        pendingActionForm = null;
+        document.getElementById('actionConfirmDialog').close();
+    }
+
+    function confirmActionSubmission() {
+        const form = pendingActionForm;
+        if (!form) return;
+        pendingActionForm = null;
+        confirmedActionForm = form;
+        document.getElementById('actionConfirmDialog').close();
+        form.requestSubmit();
+    }
+
+    document.getElementById('actionConfirmDialog').addEventListener(
+        'cancel',
+        () => { pendingActionForm = null; }
+    );
+
     function setTheme(theme, persist = true) {
         const availableThemes = ['red', 'ocean', 'forest', 'violet', 'dark'];
         const selectedTheme = availableThemes.includes(theme) ? theme : 'red';
@@ -993,6 +1118,115 @@
         filePreview.style.display = 'none';
     }
 
+    const quickPromptPool = [
+        {
+            label: 'Tell me about CSE',
+            prompt: 'Tell me about the CSE program at ISU'
+        },
+        {
+            label: 'How do I apply?',
+            prompt: 'How do I apply to ISU?'
+        },
+        {
+            label: 'Academic contact',
+            prompt: 'Who can I contact at ISU for academic help?'
+        },
+        {
+            label: 'Available programs',
+            prompt: 'What undergraduate programs does ISU offer?'
+        },
+        {
+            label: 'Admission requirements',
+            prompt: 'What are the admission requirements at ISU?'
+        },
+        {
+            label: 'Find the campus',
+            prompt: 'Where is the ISU campus located?'
+        },
+        {
+            label: 'Tuition and fees',
+            prompt: 'Where can I find information about ISU tuition and fees?'
+        },
+        {
+            label: 'Student services',
+            prompt: 'What student services are available at ISU?'
+        },
+        {
+            label: 'Faculty information',
+            prompt: 'Where can I find information about ISU faculty members?'
+        },
+        {
+            label: 'Contact admissions',
+            prompt: 'How can I contact the ISU admissions office?'
+        },
+        {
+            label: 'ISU departments',
+            prompt: 'What departments are available at ISU?'
+        },
+        {
+            label: 'Scholarships',
+            prompt: 'What scholarships are available to ISU students?'
+        },
+        {
+            label: 'Campus facilities',
+            prompt: 'What facilities are available on the ISU campus?'
+        },
+        {
+            label: 'Academic calendar',
+            prompt: 'Where can I find the ISU academic calendar?'
+        },
+        {
+            label: 'Student life',
+            prompt: 'What student activities are available at ISU?'
+        }
+    ];
+
+    function renderQuickPrompts() {
+        let previousPrompts = [];
+        try {
+            const savedPrompts = JSON.parse(
+                localStorage.getItem('mentora-quick-prompts') || '[]'
+            );
+            if (Array.isArray(savedPrompts)) {
+                previousPrompts = savedPrompts;
+            }
+        } catch (error) {
+            console.error('Could not load previous quick prompts:', error);
+        }
+
+        const availablePrompts = quickPromptPool.filter(
+            item => !previousPrompts.includes(item.prompt)
+        );
+        for (let index = availablePrompts.length - 1; index > 0; index--) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [availablePrompts[index], availablePrompts[swapIndex]] =
+                [availablePrompts[swapIndex], availablePrompts[index]];
+        }
+
+        const selectedPrompts = availablePrompts.slice(0, 3);
+        const container = document.getElementById('suggestionChips');
+        container.replaceChildren();
+        selectedPrompts.forEach(item => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'chip';
+            button.textContent = item.label;
+            button.addEventListener('click', () => sendQuickPrompt(item.prompt));
+            container.appendChild(button);
+        });
+
+        try {
+            localStorage.setItem(
+                'mentora-quick-prompts',
+                JSON.stringify(selectedPrompts.map(item => item.prompt))
+            );
+        } catch (error) {
+            console.error('Could not save the displayed quick prompts:', error);
+        }
+    }
+
+    renderQuickPrompts();
+
     function sendQuickPrompt(text) {
         if (isReplyPending || isMessageEditing) return;
         const inputField = document.getElementById('userInput');
@@ -1042,6 +1276,7 @@
 
         messagesInner.querySelectorAll('.message-row').forEach(row => row.remove());
         welcomeCard.hidden = false;
+        renderQuickPrompts();
         conversationHistory = [];
         inputField.value = '';
         inputField.style.height = 'auto';

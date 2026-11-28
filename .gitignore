@@ -10,6 +10,11 @@ env/
 uploads/*
 !uploads/.gitkeep
 
+# Local account database
+/users.db
+/users.db-shm
+/users.db-wal
+
 # Python-generated files
 __pycache__/
 *.py[cod]
