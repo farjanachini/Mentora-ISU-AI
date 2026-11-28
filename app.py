@@ -1,4 +1,6 @@
+import json
 import os
+import re
 import time
 
 from flask import Flask, render_template, request, jsonify
@@ -6,6 +8,7 @@ from flask_cors import CORS
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+from langdetect import DetectorFactory, LangDetectException, detect_langs
 from website_retrieval import (
     WebsiteRetrievalError,
     matching_faculty_categories,
@@ -23,6 +26,171 @@ BASE_DIR = os.getcwd()
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+MAX_HISTORY_MESSAGES = 40
+DetectorFactory.seed = 0
+
+LANGUAGE_NAMES = {
+    "af": "Afrikaans",
+    "ar": "Arabic",
+    "bg": "Bulgarian",
+    "bn": "Bengali",
+    "ca": "Catalan",
+    "cs": "Czech",
+    "cy": "Welsh",
+    "da": "Danish",
+    "de": "German",
+    "el": "Greek",
+    "en": "English",
+    "es": "Spanish",
+    "et": "Estonian",
+    "fa": "Persian",
+    "fi": "Finnish",
+    "fr": "French",
+    "gu": "Gujarati",
+    "he": "Hebrew",
+    "hi": "Hindi",
+    "hr": "Croatian",
+    "hu": "Hungarian",
+    "id": "Indonesian",
+    "it": "Italian",
+    "ja": "Japanese",
+    "kn": "Kannada",
+    "ko": "Korean",
+    "lt": "Lithuanian",
+    "lv": "Latvian",
+    "mk": "Macedonian",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "ne": "Nepali",
+    "nl": "Dutch",
+    "no": "Norwegian",
+    "pa": "Punjabi",
+    "pl": "Polish",
+    "pt": "Portuguese",
+    "ro": "Romanian",
+    "ru": "Russian",
+    "sk": "Slovak",
+    "sl": "Slovenian",
+    "so": "Somali",
+    "sq": "Albanian",
+    "sv": "Swedish",
+    "sw": "Swahili",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "th": "Thai",
+    "tl": "Tagalog",
+    "tr": "Turkish",
+    "uk": "Ukrainian",
+    "ur": "Urdu",
+    "vi": "Vietnamese",
+    "zh-cn": "Chinese",
+    "zh-tw": "Chinese",
+}
+
+SHORT_GREETING_LANGUAGES = {
+    "bonjour": "French",
+    "ciao": "Italian",
+    "hello": "English",
+    "hola": "Spanish",
+    "नमस्ते": "Hindi",
+    "olá": "Portuguese",
+    "こんにちは": "Japanese",
+    "你好": "Chinese",
+    "안녕하세요": "Korean",
+}
+
+LANGUAGE_ALIASES = {
+    "bangla": "Bengali",
+    "farsi": "Persian",
+    "mandarin": "Chinese",
+}
+_LANGUAGE_NAMES_PATTERN = "|".join(
+    re.escape(name)
+    for name in sorted(
+        set(LANGUAGE_NAMES.values()) | set(LANGUAGE_ALIASES),
+        key=len,
+        reverse=True,
+    )
+)
+LANGUAGE_REQUEST_RE = re.compile(
+    rf"\b(?:in|into|to)\s+(?P<language>{_LANGUAGE_NAMES_PATTERN})\b"
+    rf"|\b(?:speak|reply|respond|answer|talk|write|communicate|use)"
+    rf"\b.{{0,40}}\b(?P<direct_language>{_LANGUAGE_NAMES_PATTERN})\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_language(text):
+    normalized_text = "".join(
+        character
+        for character in text.casefold()
+        if character.isalnum() or character.isspace()
+    ).strip()
+    if normalized_text in SHORT_GREETING_LANGUAGES:
+        return SHORT_GREETING_LANGUAGES[normalized_text]
+
+    english_markers = {
+        "a", "about", "admission", "and", "answer", "are", "can",
+        "course", "english", "faculty", "hello", "how", "isu",
+        "is", "please", "process", "tell", "the", "university",
+        "what", "where", "which", "why",
+    }
+    words = set(normalized_text.split())
+    if words & english_markers:
+        return "English"
+
+    has_bengali = any("\u0980" <= character <= "\u09ff" for character in text)
+    has_arabic = any("\u0600" <= character <= "\u06ff" for character in text)
+    has_devanagari = any("\u0900" <= character <= "\u097f" for character in text)
+    has_cjk = any(
+        "\u3040" <= character <= "\u30ff"
+        or "\u3400" <= character <= "\u9fff"
+        for character in text
+    )
+    has_hangul = any("\uac00" <= character <= "\ud7af" for character in text)
+    has_cyrillic = any("\u0400" <= character <= "\u04ff" for character in text)
+
+    if has_bengali:
+        return "Bengali"
+    if has_arabic:
+        return "Arabic"
+    if has_devanagari:
+        return "Hindi"
+    if has_cjk:
+        if any("\u3040" <= character <= "\u30ff" for character in text):
+            return "Japanese"
+        return "Chinese"
+    if has_hangul:
+        return "Korean"
+    if has_cyrillic:
+        return "Russian"
+
+    try:
+        candidates = detect_langs(text)
+    except LangDetectException:
+        return None
+
+    if not candidates or candidates[0].prob < 0.95:
+        return None
+    return LANGUAGE_NAMES.get(candidates[0].lang)
+
+
+def _response_language(user_message, history):
+    language_request = LANGUAGE_REQUEST_RE.search(user_message)
+    if language_request:
+        requested_language = (
+            language_request.group("language")
+            or language_request.group("direct_language")
+        ).casefold()
+        return LANGUAGE_ALIASES.get(
+            requested_language,
+            requested_language.title(),
+        )
+
+    detected_language = _detect_language(user_message)
+    if detected_language:
+        return detected_language
+    return "English"
 
 # .env ফাইল থেকে API Key লোড করা
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -116,6 +284,24 @@ def chat():
 
     user_message = request.form.get("message", "").strip()
     uploaded_file = request.files.get("file")
+    try:
+        history = json.loads(request.form.get("history", "[]"))
+    except json.JSONDecodeError:
+        return jsonify({"response": "Chat history must be valid JSON."}), 400
+
+    if not isinstance(history, list):
+        return jsonify({"response": "Chat history must be a list."}), 400
+
+    history = history[-MAX_HISTORY_MESSAGES:]
+    if any(
+        not isinstance(turn, dict)
+        or turn.get("role") not in ("user", "model")
+        or not isinstance(turn.get("content"), str)
+        for turn in history
+    ):
+        return jsonify({
+            "response": "Chat history contains an invalid message."
+        }), 400
 
     if not user_message and not uploaded_file:
         return jsonify({
@@ -153,7 +339,8 @@ def chat():
             )
             print("--- END CONTEXT ---\n")
 
-        system_instruction = """
+        response_language = _response_language(user_message, history)
+        system_instruction = f"""
 You are ISU AI Assistant, an intelligent university chatbot.
 
 Guidelines:
@@ -163,15 +350,20 @@ Guidelines:
 4. If a person has listings in multiple departments, treat these as multiple roles and report every designation and department found. Mention a discrepancy only when sources give incompatible facts about the same role.
 5. Treat "Faculty category" annotations extracted from official faculty cards as verified ISU roles for the associated person. Report that category and department alongside any personal job title; do not substitute one for the other.
 6. For faculty roles, prefer department-specific faculty pages over an all-departments directory. Include relevant qualifications and experience present in the retrieved content.
-7. If the user asks in Bengali, reply in polite, natural, and accurate Bengali.
-8. If the user asks in English, reply in English.
-9. Keep answers structured, short, and clear. Do not include source names or URLs in the answer; the interface provides them separately.
-10. When asked for all members of a group or department, include every matching name and role found in the retrieved records. Keep entries concise and omit qualifications unless asked, prioritizing a complete list over extra detail.
-11. Use relevant and engaging emojis naturally in your responses (e.g., 👋, 🎓, 💻, 📌) to make the chat lively and friendly.
-12. For general questions unrelated to ISU, answer using your general knowledge.
+7. The required response language for this turn is {response_language}. Reply entirely in this language, regardless of earlier messages or retrieved content.
+8. Keep answers structured, short, and clear. Do not include source names or URLs in the answer; the interface provides them separately.
+9. When asked for all members of a group or department, include every matching name and role found in the retrieved records. Keep entries concise and omit qualifications unless asked, prioritizing a complete list over extra detail.
+10. Use relevant and engaging emojis naturally in your responses (e.g., 👋, 🎓, 💻, 📌) to make the chat lively and friendly.
+11. For general questions unrelated to ISU, answer using your general knowledge.
 """
 
-        contents = []
+        contents = [
+            types.Content(
+                role=turn["role"],
+                parts=[types.Part.from_text(text=turn["content"])]
+            )
+            for turn in history
+        ]
 
         if retrieved_context:
             context_without_source_urls = "\n".join(
@@ -218,7 +410,12 @@ Guidelines:
                 contents.append(gemini_file)
 
         if user_message:
-            contents.append("User Question:\n" + user_message)
+            contents.append(
+                f"The required response language for this turn is "
+                f"{response_language}. Reply entirely in this language, "
+                "regardless of earlier conversation language.\n\n"
+                "User Question:\n" + user_message
+            )
 
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -861,7 +861,6 @@
                 <div class="suggestion-chips">
                     <button class="chip" onclick="sendQuickPrompt('Tell me about the CSE program at ISU')">Tell me about CSE</button>
                     <button class="chip" onclick="sendQuickPrompt('How do I apply to ISU?')">How do I apply?</button>
-                    <button class="chip" onclick="sendQuickPrompt('Where can I find ISU tuition fees?')">Tuition fees</button>
                     <button class="chip" onclick="sendQuickPrompt('Who can I contact at ISU for academic help?')">Academic contact</button>
                 </div>
             </div>
@@ -1003,6 +1002,7 @@
 
     let isReplyPending = false;
     let isMessageEditing = false;
+    let conversationHistory = [];
 
     function setReplyPending(pending) {
         isReplyPending = pending;
@@ -1042,6 +1042,7 @@
 
         messagesInner.querySelectorAll('.message-row').forEach(row => row.remove());
         welcomeCard.hidden = false;
+        conversationHistory = [];
         inputField.value = '';
         inputField.style.height = 'auto';
         clearFile();
@@ -1063,6 +1064,7 @@
 
         if (!userText && !file) return;
 
+        const historyIndex = conversationHistory.length;
         setReplyPending(true);
         document.getElementById('welcomeCard').hidden = true;
         let displayMsg = escapeHTML(userText);
@@ -1074,12 +1076,16 @@
 
         appendMessage(displayMsg, 'user', true, {
             actionText: userText,
-            attachment: file
+            attachment: file,
+            historyIndex: historyIndex
         });
 
         const formData = new FormData();
         if (userText) formData.append('message', userText);
         if (file) formData.append('file', file);
+        formData.append('history', JSON.stringify(
+            conversationHistory.slice(-40)
+        ));
 
         inputField.value = '';
         inputField.style.height = 'auto';
@@ -1106,6 +1112,15 @@
 
             if (data.response) {
                 appendMessage(data.response, 'bot', false);
+                if (response.ok) {
+                    conversationHistory.push(
+                        {
+                            role: 'user',
+                            content: userText || `Uploaded file: ${file.name}`
+                        },
+                        { role: 'model', content: data.response }
+                    );
+                }
             } else {
                 appendMessage('Error processing request.', 'bot', false, {
                     includeActions: false
@@ -1307,6 +1322,7 @@
             nextRow.remove();
             nextRow = followingRow;
         }
+        conversationHistory.length = Number(row.dataset.historyIndex);
         row.remove();
         closeUserMessageEditor(row);
 
@@ -1377,6 +1393,7 @@
             if (actionText.trim()) {
                 row.dataset.replyText = actionText;
                 row._attachmentFile = options.attachment || null;
+                row.dataset.historyIndex = options.historyIndex;
 
                 const editor = document.createElement('textarea');
                 editor.className = 'reply-editor';
